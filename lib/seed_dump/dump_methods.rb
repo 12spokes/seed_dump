@@ -24,7 +24,7 @@ class SeedDump
       @opts['append']  = (env['APPEND'].true? && File.exists?(@opts['file']) )
       @opts['max']     = env['MAX'] && env['MAX'].to_i > 0 ? env['MAX'].to_i : nil
       @indent          = " " * (env['INDENT'].nil? ? 2 : env['INDENT'].to_i)
-      @opts['create_method']  = env['CREATE_METHOD'] || 'create!'
+      @opts['create_method']  = env['CREATE_METHOD'] || 'import'
 
       @limit = (env['LIMIT'].to_i > 0) ? env['LIMIT'].to_i : nil
 
@@ -49,11 +49,25 @@ class SeedDump
 
       unless k == 'id' && !@opts['with_id']
         if (!(k == 'created_at' || k == 'updated_at') || @opts['timestamps'])
-          a_s.push("#{k.to_sym.inspect} => #{v}")
+          a_s.push("#{v}")
           pushed = true
         end
       end
       pushed
+    end
+
+    def dump_attribute_names(record)
+      a_s = []
+
+      record.attribute_names.each do |attr|
+        if attr != 'id' || @opts['with_id']
+          if (!(attr == 'created_at' || attr == 'updated_at') || @opts['timestamps'])
+            a_s.push(attr.to_sym.inspect)
+          end
+        end
+      end
+
+      return a_s
     end
 
     def dump_model(model)
@@ -69,20 +83,29 @@ class SeedDump
           dump_attribute(attr_s, record, k, v)
         end
 
-        rows.push "#{@indent}{ " << attr_s.join(', ') << " }"
+        rows.push "#{@indent}[ " << attr_s.join(', ') << " ]"
 
         break if rows.length == @limit
+      end
+
+      def import_options
+        opts = ''
+        if @opts['timestamps']
+          opts << ', timestamps: false'
+        end
+
+        return opts
       end
 
       if @opts['max']
         splited_rows = rows.each_slice(@opts['max']).to_a
         maxsarr = []
         splited_rows.each do |sr|
-          maxsarr << "\n#{model}.#{@opts['create_method']}([\n" << sr.join(",\n") << "\n])\n"
+          maxsarr << "\n#{model}.#{@opts['create_method']}([#{dump_attribute_names(model).join(', ')}], [\n" << sr.join(",\n") << "\n]#{import_options})\n"
         end
         maxsarr.join('')
       else
-        "\n#{model}.#{@opts['create_method']}([\n" << rows.join(",\n") << "\n])\n"
+        "\n#{model}.#{@opts['create_method']}([#{dump_attribute_names(model).join(', ')}], [\n" << rows.join(",\n") << "\n]#{import_options})\n"
       end
 
     end

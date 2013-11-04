@@ -25,6 +25,7 @@ class SeedDump
       @opts['max']     = env['MAX'] && env['MAX'].to_i > 0 ? env['MAX'].to_i : nil
       @indent          = " " * (env['INDENT'].nil? ? 2 : env['INDENT'].to_i)
       @opts['create_method']  = env['CREATE_METHOD'] || 'create!'
+      @opts['reset_sequences']  = env['RESET_SEQUENCES'].true?
 
       @limit = (env['LIMIT'].to_i > 0) ? env['LIMIT'].to_i : nil
 
@@ -111,6 +112,13 @@ class SeedDump
       @seed_rb
     end
 
+    def reset_sequences
+      @seed_rb << "\nrequire 'active_record/reset_pk_sequence'\n"
+      @models.each do |m|
+        @seed_rb << "#{m}.reset_pk_sequence\n"
+      end
+    end
+
     def write_file
       File.open(@opts['file'], (@opts['append'] ? "a" : "w")) { |f|
         f << "# encoding: utf-8\n"
@@ -141,6 +149,8 @@ class SeedDump
 
       puts "Appending seeds to #{@opts['file']}." if @opts['append']
       dump_models
+
+      reset_sequences if @opts['reset_sequences']
 
       puts "Writing #{@opts['file']}."
       write_file
